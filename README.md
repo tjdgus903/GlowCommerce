@@ -3,22 +3,22 @@
 DB 접속 방법
 DB 서버 IP : 192.168.56.112
 
-1. docker compose 실행
+① docker compose 실행
+   
 cd /root/mini-commerce-lab/infra
+
 docker compose up -d
 
-2. docker db 확인
-[root@vbox ~]# docker ps
-CONTAINER ID   IMAGE                                                  COMMAND                   CREATED        STATUS                 PORTS                                                           NAMES
-f28fe61910a0   postgres:16                                            "docker-entrypoint.s…"   25 hours ago   Up 2 hours (healthy)   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp                       mcl-postgres
-98905558c012   confluentinc/cp-zookeeper:7.6.1                        "/etc/confluent/dock…"   25 hours ago   Up 2 hours             2888/tcp, 0.0.0.0:2181->2181/tcp, :::2181->2181/tcp, 3888/tcp   mcl-zookeeper
-36378e7226ca   docker.elastic.co/elasticsearch/elasticsearch:8.13.4   "/bin/tini -- /usr/l…"   25 hours ago   Up 2 hours             0.0.0.0:9200->9200/tcp, :::9200->9200/tcp, 9300/tcp             mcl-elasticsearch
+② docker db 확인
 
-3. 컨테이너 접속
+docker ps
+
+③ 컨테이너 접속
+
 docker exec -it f bash
 
-4. db 접속
-root@f28fe61910a0:/# psql mcl mcl
-psql (16.11 (Debian 16.11-1.pgdg13+1))
-Type "help" for help.
-mcl=#
+④ db 접속
+
+psql mcl mcl
+
+
