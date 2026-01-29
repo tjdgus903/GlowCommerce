@@ -3,6 +3,7 @@ package com.mcl.mini_commerce_lab.common.interceptor
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import org.slf4j.MDC
 import org.springframework.stereotype.Component
 import org.springframework.web.servlet.HandlerInterceptor
 import java.lang.Exception
@@ -31,7 +32,12 @@ class RequestTimingInterceptor : HandlerInterceptor{
     ): Boolean {
         request.setAttribute("startTime", System.currentTimeMillis())
 
-        log.info("[INTERCEPTOR] preHandle - uri={}",request.requestURI)
+        log.info(
+            "[INTERCEPTOR] preHandle uri={}, correlationId={}",
+            request.requestURI,
+            MDC.get("correlationId")
+        )
+
         return true
     }
 
@@ -45,9 +51,10 @@ class RequestTimingInterceptor : HandlerInterceptor{
         val duration = System.currentTimeMillis() - startTime
 
         log.info(
-            "[INTERCEPTOR] afterCompletion - uri={}, duration={}ms",
+            "[INTERCEPTOR] afterCompletion uri={}, duration={}ms, correlationId={}",
             request.requestURI,
-            duration
+            duration,
+            MDC.get("correlationId")
         )
     }
 }
