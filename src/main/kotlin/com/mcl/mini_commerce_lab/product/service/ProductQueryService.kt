@@ -1,5 +1,6 @@
 package com.mcl.mini_commerce_lab.product.service
 
+import com.mcl.mini_commerce_lab.common.error.NotFoundException
 import com.mcl.mini_commerce_lab.product.api.dto.ProductDetailResponse
 import com.mcl.mini_commerce_lab.product.api.dto.SkuResponse
 import com.mcl.mini_commerce_lab.product.repository.ProductRepository
@@ -16,7 +17,7 @@ class ProductQueryService (
     @Transactional(readOnly = true)
     fun getProductDetail(productId: Long): ProductDetailResponse{
         val product = productRepository.findById(productId)
-            .orElseThrow{ NoSuchElementException("Product not found. productId=$productId") }
+            .orElseThrow{ NotFoundException("Product not found. productId=$productId") }
 
         val skus = skuRepository.findAllByProductId(productId)
 
