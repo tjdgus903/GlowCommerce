@@ -30,6 +30,8 @@ spring:
     consumer:
       group-id: mcl-consumer
       auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
   elasticsearch:
     uris: http://192.168.56.112:9200
