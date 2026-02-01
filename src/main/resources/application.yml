@@ -36,6 +36,10 @@ spring:
   elasticsearch:
     uris: http://192.168.56.112:9200
 
+  redis:
+    host: 192.168.56.112
+    port: 6379
+
 management:
   endpoints:
     web:
