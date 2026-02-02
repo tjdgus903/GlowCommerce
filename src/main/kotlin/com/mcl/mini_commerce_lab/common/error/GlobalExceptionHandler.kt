@@ -57,4 +57,25 @@ class GlobalExceptionHandler {
             )
         )
     }
+
+    /**
+     * 주문 생성 중 "이미 처리 중" 같은 충돌 상황을 409로 응답하기 위한 핸들러
+     *
+     * ex) 같은 idempotencyKey 로 동시에 두번 호출되면,
+     *     한쪽은 처리권(락)을 잡고 진행 중이고
+     *     다른 쪽은 "processing" 상태를 보고 충돌로 판단할 수 있음
+     */
+    @ExceptionHandler(IllegalStateException::class)
+    fun handleConflict(ex: IllegalStateException, req: HttpServletRequest): ResponseEntity<ErrorResponse> {
+        val status = HttpStatus.CONFLICT
+        return ResponseEntity.status(status).body(
+            ErrorResponse(
+                status = status.value(),
+                error = status.reasonPhrase,
+                message = ex.message ?: "Conflict",
+                path = req.requestURI,
+                correlationId = MDC.get("correlationId")
+            )
+        )
+    }
 }
