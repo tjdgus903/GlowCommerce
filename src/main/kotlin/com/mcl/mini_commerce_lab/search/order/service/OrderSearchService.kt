@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.mcl.mini_commerce_lab.search.order.OrderSearchRepository
 import com.mcl.mini_commerce_lab.search.order.api.dto.OrderSearchResponse
+import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,6 +24,14 @@ class OrderSearchService(
     // 객체 <-> JSON 변환용
     private val objectMapper: ObjectMapper,
 ) {
+    private val log = LoggerFactory.getLogger(this::class.java)
+
+    companion object{
+        // 캐시 유효 시간(Time To Life : TTL)
+        private val TTL = Duration.ofSeconds(20)
+        // Redis Key 생성 규칙
+        fun userKey(userId: Long) = "cache:search:orders:user:$userId"
+    }
 
     /**
      * 주문 검색 메서드
@@ -35,10 +44,11 @@ class OrderSearchService(
         if(userId != null){
             // Redis 에 저장할 Key
             // 같은 사용가자 같은 검색을 하면 항상 이 key 를 사용
-            val key = "search:orders:user:$userId"
+            val key = userKey(userId)
 
             // 2) redis 캐시 먼저 조회
             redisTemplate.opsForValue().get(key)?.let { cached ->
+                log.info("[CACHE] HIT key={}", key)
                 // redis 에 값이 있으면(JSON 문자열)
                 // => DB/ES 조회 없이 바로 반환
                 return objectMapper.readValue(
@@ -48,6 +58,7 @@ class OrderSearchService(
             }
 
             // 3) Redis 에 값이 없으면 ES 조회
+            log.info("[CACHE] MISS key={}", key)
             val result = orderSearchRepository.findAllByUserId(userId)
                 .map {
                     OrderSearchResponse(
@@ -67,11 +78,12 @@ class OrderSearchService(
             redisTemplate.opsForValue().set(
                 key,
                 objectMapper.writeValueAsString(result),
-                Duration.ofSeconds(20)
+                TTL
             )
             return result
         }
 
+        // userId 가 없을 경우 -> 캐싱 없이 조건별 ES 조회
         val docs = when {
             userId != null -> orderSearchRepository.findAllByUserId(userId)
             skuId != null -> orderSearchRepository.findAllBySkuId(skuId)
