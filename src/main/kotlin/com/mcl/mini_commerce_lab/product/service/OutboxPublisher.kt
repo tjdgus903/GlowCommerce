@@ -1,5 +1,6 @@
 package com.mcl.mini_commerce_lab.product.service
 
+import com.mcl.mini_commerce_lab.observability.MclMetrics
 import com.mcl.mini_commerce_lab.product.domain.OutboxStatus
 import com.mcl.mini_commerce_lab.product.repository.OutboxRepository
 import org.slf4j.LoggerFactory
@@ -13,7 +14,8 @@ import java.time.OffsetDateTime
 @Component
 class OutboxPublisher(
     private val outboxRepository: OutboxRepository,
-    private val kafkaTemplate: KafkaTemplate<String, String>
+    private val kafkaTemplate: KafkaTemplate<String, String>,
+    private val metrics: MclMetrics
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
 
@@ -29,6 +31,7 @@ class OutboxPublisher(
             OutboxStatus.NEW,                          // outbox 테이블에서 status 가 NEW 인 데이터
             PageRequest.of(0, 20)   // 매번 DB 에서 오래된 데이터 최대 20 개를 끊어서 읽어오기
         )
+        metrics.setOutboxBatchSize(events.size)
 
         // 2) 처리할 이벤트가 없으면 종료
         if (events.isEmpty()) return
@@ -49,9 +52,11 @@ class OutboxPublisher(
                 event.status = OutboxStatus.SENT
                 event.sentAt = OffsetDateTime.now()
 
+                metrics.kafkaPublishSuccess.increment()
                 log.info("[OUTBOX] sent topic={}, outboxId={}, aggregateId={}", TOPIC, event.id, event.aggregateId)
             }catch (e: Exception){
                 event.status = OutboxStatus.FAILED
+                metrics.kafkaPublishFailed.increment()
                 log.error("[OUTBOX] failed topic={}, outboxId={}, aggregateId={}", TOPIC, event.id, event.aggregateId, e)
             }
         }

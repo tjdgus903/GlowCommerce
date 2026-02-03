@@ -2,6 +2,7 @@ package com.mcl.mini_commerce_lab.product.service
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.mcl.mini_commerce_lab.common.error.NotFoundException
+import com.mcl.mini_commerce_lab.observability.MclMetrics
 import com.mcl.mini_commerce_lab.product.api.dto.CreateOrderRequest
 import com.mcl.mini_commerce_lab.product.api.dto.CreatedOrderResponse
 import com.mcl.mini_commerce_lab.product.domain.Order
@@ -25,6 +26,7 @@ class OrderService(
     private val objectMapper: ObjectMapper,
     private val orderQueryService: OrderQueryService,
     private val redisTemplate: StringRedisTemplate,
+    private val metrics: MclMetrics,
 ) {
     companion object{
         /**
@@ -58,6 +60,7 @@ class OrderService(
      */
     @Transactional
     fun createOrder(req: CreateOrderRequest): CreatedOrderResponse{
+        metrics.ordersCreateAttempt.increment()
         // 0) 요청값 검증(req 의 필드가 nullable 이라서 직접 체크)
         val skuId = req.skuId ?: throw IllegalArgumentException("skuId is required")
         val quantity = req.quantity ?: throw IllegalArgumentException("quantity is required")
@@ -87,6 +90,7 @@ class OrderService(
 
             // 4-2) 이미 주문 생성 완료된 경우 -> 바로 결과 반환
             if(v != null && v.startsWith("orderId:")){
+                metrics.ordersCreateRecovered.increment()
                 val orderId = v.removePrefix("orderId:").toLong()
 
                 // status 는 상황에 따라 DB에서 정확히 읽어오고 싶으면 조회해서 채워도 됨
@@ -97,6 +101,7 @@ class OrderService(
             //      DB 를 조회해서 이미 생성된 주문이 있는지 확인(fallback)
             val existing = orderQueryService.findByIdempotencyKeyOrNull(req.idempotencyKey)
             if (existing != null){
+                metrics.ordersCreateRecovered.increment()
                 // 4-4) DB에 이미 존재하면 Redis에 결과를 저장(캐싱)해두고
                 //      다음 중복 호출에서 더 빠르게 반환 가능
                 redisTemplate.opsForValue().set(idemRedisKey, "orderId:${existing.id}", IDEM_TTL)
@@ -160,6 +165,8 @@ class OrderService(
             // - 다음에 같은 멱등키로 들어오면 Redis에서 바로 orderId를 꺼내 반환 가능
             redisTemplate.opsForValue().set(idemRedisKey, "orderId:${order.id}", IDEM_TTL)
 
+            metrics.ordersCreateSuccess.increment()
+
             // 9) 최종 응답 반환
             CreatedOrderResponse(
                 orderId = order.id!!,
@@ -167,6 +174,7 @@ class OrderService(
                 correlationId= correlationId
                 )
         } catch (e: DataIntegrityViolationException){
+            metrics.ordersCreateFailed.increment()
             // 10) 레이스 컨디션:
             // - 동시에 2개 트랜잭션이 insert하려다 unique constraint로 한쪽이 실패할 수 있음
             // - 이때는 "실패한 쪽" 이 DB에서 기존 주문을 조회해서 결과를 회수(recover)

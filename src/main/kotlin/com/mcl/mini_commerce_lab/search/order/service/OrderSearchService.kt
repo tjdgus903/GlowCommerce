@@ -2,6 +2,7 @@ package com.mcl.mini_commerce_lab.search.order.service
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.mcl.mini_commerce_lab.observability.MclMetrics
 import com.mcl.mini_commerce_lab.search.order.OrderSearchRepository
 import com.mcl.mini_commerce_lab.search.order.api.dto.OrderSearchResponse
 import org.slf4j.LoggerFactory
@@ -23,6 +24,7 @@ class OrderSearchService(
     private val redisTemplate: StringRedisTemplate,
     // 객체 <-> JSON 변환용
     private val objectMapper: ObjectMapper,
+    private val metrics: MclMetrics,
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
 
@@ -49,6 +51,7 @@ class OrderSearchService(
             // 2) redis 캐시 먼저 조회
             redisTemplate.opsForValue().get(key)?.let { cached ->
                 log.info("[CACHE] HIT key={}", key)
+                metrics.cacheSearchHit.increment()
                 // redis 에 값이 있으면(JSON 문자열)
                 // => DB/ES 조회 없이 바로 반환
                 return objectMapper.readValue(
@@ -59,6 +62,7 @@ class OrderSearchService(
 
             // 3) Redis 에 값이 없으면 ES 조회
             log.info("[CACHE] MISS key={}", key)
+            metrics.cacheSearchMiss.increment()
             val result = orderSearchRepository.findAllByUserId(userId)
                 .map {
                     OrderSearchResponse(

@@ -7,4 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface OutboxRepository : JpaRepository<OutboxEvent, Long> {
     fun findByStatusOrderByCreatedAtAsc(status: OutboxStatus, pageable: Pageable): List<OutboxEvent>
+    fun countByStatus(status: OutboxStatus): Long
 }

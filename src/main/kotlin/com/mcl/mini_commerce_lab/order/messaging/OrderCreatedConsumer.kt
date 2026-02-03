@@ -2,6 +2,7 @@ package com.mcl.mini_commerce_lab.order.messaging
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.mcl.mini_commerce_lab.observability.MclMetrics
 import com.mcl.mini_commerce_lab.search.order.OrderDocument
 import com.mcl.mini_commerce_lab.search.order.OrderSearchRepository
 import org.slf4j.LoggerFactory
@@ -20,6 +21,7 @@ class OrderCreatedConsumer(
     private val objectMapper: ObjectMapper,
     // es 에 OrderDocument 를 저장하기 위한 Repository
     private val orderSearchRepository: OrderSearchRepository,
+    private val metrics: MclMetrics,
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
 
@@ -54,8 +56,12 @@ class OrderCreatedConsumer(
 
             orderSearchRepository.save(doc)
 
+            metrics.consumerIndexedSuccess.increment()
             log.info("[Kafka -> ES] indexed orderId={}, skuId={}", doc.orderId, doc.skuId)
-        } finally {
+        } catch (e: Exception) {
+            metrics.consumerIndexedFailed.increment()
+            throw e
+        }finally {
             MDC.clear()
         }
     }
