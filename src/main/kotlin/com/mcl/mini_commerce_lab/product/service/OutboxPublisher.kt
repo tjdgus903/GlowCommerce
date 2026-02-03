@@ -29,7 +29,7 @@ class OutboxPublisher(
         // 1) Outbox 테이블에서 NEW 상태인 이벤트를 오래된(CreatedAt ASC) 순으로 가져오기
         val events = outboxRepository.findByStatusOrderByCreatedAtAsc(
             OutboxStatus.NEW,                          // outbox 테이블에서 status 가 NEW 인 데이터
-            PageRequest.of(0, 20)   // 매번 DB 에서 오래된 데이터 최대 20 개를 끊어서 읽어오기
+            PageRequest.of(0, 50)   // 매번 DB 에서 오래된 데이터 최대 20 개를 끊어서 읽어오기
         )
         metrics.setOutboxBatchSize(events.size)
 
@@ -43,21 +43,17 @@ class OutboxPublisher(
             // Kafka 에 보낼 메시지 본문(payload)
             val value = event.payload.toString()
 
-            try{
-                // 4) Kafka 발행
-                // send() 는 기본적으로 비동기 Future 를 반환
-                // get() 을 호출하면 성공/실패가 확정날때까지 현재 쓰레드가 기다림(동시 대기)
-                kafkaTemplate.send(TOPIC, key, value).get()
-                // 5) 발행 성공하면 Outbox 상태 변경
-                event.status = OutboxStatus.SENT
-                event.sentAt = OffsetDateTime.now()
-
-                metrics.kafkaPublishSuccess.increment()
-                log.info("[OUTBOX] sent topic={}, outboxId={}, aggregateId={}", TOPIC, event.id, event.aggregateId)
-            }catch (e: Exception){
-                event.status = OutboxStatus.FAILED
-                metrics.kafkaPublishFailed.increment()
-                log.error("[OUTBOX] failed topic={}, outboxId={}, aggregateId={}", TOPIC, event.id, event.aggregateId, e)
+            kafkaTemplate.send(TOPIC, key, value)
+                .whenComplete{ result, ex ->
+                if (ex == null) {
+                    // 성공: 상태만 바꿔두면 트랜잭션 커밋 때 반영
+                    event.status = OutboxStatus.SENT
+                    event.sentAt = OffsetDateTime.now()
+                    metrics.kafkaPublishSuccess.increment()
+                } else {
+                    event.status = OutboxStatus.FAILED
+                    metrics.kafkaPublishFailed.increment()
+                }
             }
         }
         // @Transactional 이라 상태 반영이 commit 시점에 반영됨
